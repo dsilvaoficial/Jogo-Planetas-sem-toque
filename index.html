@@ -3,26 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Jogo Sistema Solar</title>
 
 <style>
 body { margin:0; overflow:hidden; }
 
-/* CÂMERA EM TELA CHEIA */
 video {
   position: fixed;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 1;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  z-index:1;
 }
 
-/* CANVAS 3D POR CIMA */
 canvas {
-  position: fixed;
+  position:fixed;
   top:0;
   left:0;
-  z-index: 2;
+  z-index:2;
 }
 </style>
 
@@ -36,7 +33,7 @@ canvas {
 <video id="video" autoplay playsinline></video>
 
 <script>
-// ===== THREE =====
+// ===== CENA =====
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
@@ -46,59 +43,85 @@ const renderer = new THREE.WebGLRenderer({ alpha:true });
 renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
-// luz
+// ===== LUZ =====
 scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-const light = new THREE.PointLight(0xffffff, 1.5);
-scene.add(light);
+scene.add(new THREE.PointLight(0xffffff, 1.5));
 
-// ===== SOL (MENOR) =====
+// ===== TEXTURAS =====
+const loader = new THREE.TextureLoader();
+
+const texEarth = loader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg");
+const texJupiter = loader.load("https://threejs.org/examples/textures/planets/jupiter.jpg");
+const texSaturn = loader.load("https://threejs.org/examples/textures/planets/saturn.jpg");
+const texRing = loader.load("https://threejs.org/examples/textures/planets/saturnringcolor.jpg");
+
+// ===== SOL =====
 const sun = new THREE.Mesh(
-  new THREE.SphereGeometry(1.5, 64, 64),
-  new THREE.MeshBasicMaterial({ color: 0xffaa00 })
+  new THREE.SphereGeometry(1.5,64,64),
+  new THREE.MeshBasicMaterial({color:0xffaa00})
 );
 scene.add(sun);
 
-// ===== ÓRBITAS =====
-function orbit(r){
+// ===== ÓRBITA + ZONA =====
+function createOrbit(r){
   const curve = new THREE.EllipseCurve(0,0,r,r);
   const pts = curve.getPoints(100);
-  return new THREE.LineLoop(
+
+  const line = new THREE.LineLoop(
     new THREE.BufferGeometry().setFromPoints(pts),
-    new THREE.LineBasicMaterial({ color: 0xffffff })
+    new THREE.LineBasicMaterial({ color:0xffffff })
   );
+
+  // zona de encaixe (sombra)
+  const zone = new THREE.Mesh(
+    new THREE.RingGeometry(r-0.3, r+0.3, 64),
+    new THREE.MeshBasicMaterial({
+      color:0x00ff00,
+      transparent:true,
+      opacity:0.1
+    })
+  );
+  zone.rotation.x = Math.PI/2;
+
+  scene.add(zone);
+  return line;
 }
 
 // ===== PLANETAS =====
-const data = [
-  {name:"Mercury", color:0xaaaaaa, size:0.3, dist:3},
-  {name:"Venus", color:0xffaa66, size:0.5, dist:4},
-  {name:"Earth", color:0x3399ff, size:0.5, dist:5},
-  {name:"Mars", color:0xff3300, size:0.4, dist:6},
-  {name:"Jupiter", color:0xffcc99, size:1, dist:8},
-  {name:"Saturn", color:0xffddaa, size:0.9, dist:10},
-  {name:"Uranus", color:0x66ccff, size:0.7, dist:12},
-  {name:"Neptune", color:0x3366ff, size:0.7, dist:14},
-];
-
-const planets = [];
-
-data.forEach(p=>{
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(p.size,32,32),
-    new THREE.MeshStandardMaterial({ color:p.color })
+function createPlanet(size, material){
+  return new THREE.Mesh(
+    new THREE.SphereGeometry(size,64,64),
+    material
   );
+}
 
-  mesh.position.set(
-    (Math.random()-0.5)*10,
-    (Math.random()-0.5)*6,
-    0
-  );
+const earth = createPlanet(0.6, new THREE.MeshStandardMaterial({map:texEarth}));
+const jupiter = createPlanet(1, new THREE.MeshStandardMaterial({map:texJupiter}));
+const saturn = createPlanet(0.9, new THREE.MeshStandardMaterial({map:texSaturn}));
 
-  scene.add(mesh);
-  scene.add(orbit(p.dist));
+// anel Saturno
+const ring = new THREE.Mesh(
+  new THREE.RingGeometry(1.2,2,64),
+  new THREE.MeshBasicMaterial({
+    map: texRing,
+    side: THREE.DoubleSide,
+    transparent:true
+  })
+);
+ring.rotation.x = Math.PI/2;
+saturn.add(ring);
 
-  planets.push({mesh, ...p});
-});
+// posições iniciais
+earth.position.set(-6,3,0);
+jupiter.position.set(6,3,0);
+saturn.position.set(0,-5,0);
+
+scene.add(earth, jupiter, saturn);
+
+// órbitas
+scene.add(createOrbit(5));
+scene.add(createOrbit(8));
+scene.add(createOrbit(11));
 
 // ===== MÃO =====
 let tx=0, ty=0, sx=0, sy=0;
@@ -121,79 +144,67 @@ hands.onResults(r=>{
   if(r.multiHandLandmarks.length){
     detected=true;
     const f = r.multiHandLandmarks[0][8];
-
     tx = (f.x-0.5)*16;
     ty = -(f.y-0.5)*10;
   } else detected=false;
 });
 
 new Camera(video,{
-  onFrame: async()=> await hands.send({image:video}),
+  onFrame:async()=>await hands.send({image:video}),
   width:640,
   height:480
 }).start();
 
-// ===== SELEÇÃO =====
+// ===== PEGAR PLANETA =====
 let selected=null;
 
 function pick(x,y){
-  let best=null;
-  let min=999;
-
-  planets.forEach(p=>{
-    const d = Math.hypot(p.mesh.position.x-x, p.mesh.position.y-y);
-    if(d<1.5 && d<min){
-      min=d;
-      best=p;
-    }
-  });
-
-  return best;
+  let objs=[earth,jupiter,saturn];
+  return objs.find(o=> Math.hypot(o.position.x-x,o.position.y-y)<1.5);
 }
 
 // ===== LOOP =====
 function animate(){
   requestAnimationFrame(animate);
 
-  sx += (tx - sx)*0.2;
-  sy += (ty - sy)*0.2;
+  sx += (tx-sx)*0.2;
+  sy += (ty-sy)*0.2;
 
   if(detected){
     if(!selected) selected = pick(sx,sy);
 
     if(selected){
-      // LIMITAR ÁREA (não entrar no sol)
-      const distCenter = Math.hypot(sx, sy);
-      if(distCenter > 2){
-        selected.mesh.position.x = sx;
-        selected.mesh.position.y = sy;
-      }
+      selected.position.x = sx;
+      selected.position.y = sy;
     }
-  } else {
-    selected=null;
-  }
+  } else selected=null;
 
-  // CHECK + SNAP + ROTAÇÃO
+  // validação
+  const planets = [
+    {obj:earth, dist:5},
+    {obj:jupiter, dist:8},
+    {obj:saturn, dist:11}
+  ];
+
   planets.forEach(p=>{
-    const d = p.mesh.position.length();
-    const correct = Math.abs(d - p.dist) < 0.4;
+    const d = p.obj.position.length();
+    const correct = Math.abs(d - p.dist) < 0.5;
 
     if(correct){
-      // SNAP FORTE
-      const angle = Math.atan2(p.mesh.position.y, p.mesh.position.x);
-      p.mesh.position.x = Math.cos(angle)*p.dist;
-      p.mesh.position.y = Math.sin(angle)*p.dist;
+      // encaixe magnético
+      const ang = Math.atan2(p.obj.position.y,p.obj.position.x);
+      p.obj.position.x = Math.cos(ang)*p.dist;
+      p.obj.position.y = Math.sin(ang)*p.dist;
 
-      p.mesh.rotation.y += 0.02;
-      p.mesh.material.emissive.set(0x00ff00);
+      p.obj.rotation.y += 0.03;
+      p.obj.material.emissive.set(0x00ff00);
     } else {
-      p.mesh.material.emissive.set(0x000000);
+      p.obj.material.emissive.set(0x000000);
     }
   });
 
   renderer.render(scene,camera);
 }
-
 animate();
 
 // resize
