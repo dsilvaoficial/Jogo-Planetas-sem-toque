@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planeta com Mão</title>
+
+<style>
+body { margin: 0; overflow: hidden; background: black; }
+video {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 120px;
+  border-radius: 10px;
+  opacity: 0.7;
+}
+canvas { display: block; }
+</style>
+
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+
+<!-- Three.js -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.152.2/build/three.min.js"></script>
+
+</head>
+<body>
+
+<video id="video" autoplay playsinline></video>
+
+<script>
+const video = document.getElementById("video");
+
+// ====== THREE.JS ======
+const scene = new THREE.Scene();
+
+const camera = new THREE.PerspectiveCamera(
+  75,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  1000
+);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Luz
+const light = new THREE.PointLight(0xffffff, 1.5);
+light.position.set(5, 5, 5);
+scene.add(light);
+
+// Planeta
+const geometry = new THREE.SphereGeometry(1, 32, 32);
+const material = new THREE.MeshStandardMaterial({ color: 0x3399ff });
+const planet = new THREE.Mesh(geometry, material);
+scene.add(planet);
+
+camera.position.z = 5;
+
+// ====== MEDIA PIPE ======
+let handX = 0;
+let handY = 0;
+let detected = false;
+
+const hands = new Hands({
+  locateFile: (file) => {
+    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+  }
+});
+
+hands.setOptions({
+  maxNumHands: 1,
+  modelComplexity: 1,
+  minDetectionConfidence: 0.7,
+  minTrackingConfidence: 0.7
+});
+
+hands.onResults(results => {
+  if (results.multiHandLandmarks.length > 0) {
+    detected = true;
+
+    const landmark = results.multiHandLandmarks[0][8]; // dedo indicador
+
+    handX = (landmark.x - 0.5) * 10;
+    handY = -(landmark.y - 0.5) * 10;
+
+  } else {
+    detected = false;
+  }
+});
+
+// câmera
+const cam = new Camera(video, {
+  onFrame: async () => {
+    await hands.send({ image: video });
+  },
+  width: 640,
+  height: 480
+});
+cam.start();
+
+// ====== ANIMAÇÃO ======
+function animate() {
+  requestAnimationFrame(animate);
+
+  if (detected) {
+    planet.position.x = handX;
+    planet.position.y = handY;
+  }
+
+  planet.rotation.y += 0.01;
+
+  renderer.render(scene, camera);
+}
+
+animate();
+
+// ====== RESPONSIVO ======
+window.addEventListener("resize", () => {
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+});
+</script>
+
+</body>
+</html>
