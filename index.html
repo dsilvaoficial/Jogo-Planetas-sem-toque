@@ -3,11 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sistema Solar Game</title>
+<title>Sistema Solar Realista</title>
 
 <style>
 body { margin: 0; overflow: hidden; background: black; }
-
 #video {
   position: absolute;
   bottom: 10px;
@@ -15,16 +14,6 @@ body { margin: 0; overflow: hidden; background: black; }
   width: 120px;
   border-radius: 10px;
   opacity: 0.7;
-  z-index: 10;
-}
-
-#ui {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  color: white;
-  font-family: Arial;
-  z-index: 10;
 }
 </style>
 
@@ -35,11 +24,10 @@ body { margin: 0; overflow: hidden; background: black; }
 </head>
 <body>
 
-<div id="ui">🪐 Coloque os planetas na ordem correta</div>
 <video id="video" autoplay playsinline></video>
 
 <script>
-// ===== THREE =====
+// ===== CENA =====
 const scene = new THREE.Scene();
 
 const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
@@ -50,93 +38,102 @@ renderer.setSize(innerWidth, innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // ===== LUZ =====
-scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
 const light = new THREE.PointLight(0xffffff, 2);
 light.position.set(0,0,0);
 scene.add(light);
 
-// ===== FUNDO ESTRELAS =====
-const starGeo = new THREE.BufferGeometry();
-const starCount = 2000;
-const positions = [];
-
-for (let i=0;i<starCount;i++){
-  positions.push(
-    (Math.random()-0.5)*200,
-    (Math.random()-0.5)*200,
-    (Math.random()-0.5)*200
-  );
-}
-
-starGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions,3));
-const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffffff}));
+// ===== FUNDO =====
+const stars = new THREE.Points(
+  new THREE.BufferGeometry().setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(
+      Array.from({length:3000},()=> (Math.random()-0.5)*300),
+      3
+    )
+  ),
+  new THREE.PointsMaterial({color:0xffffff})
+);
 scene.add(stars);
+
+// ===== TEXTURAS =====
+const loader = new THREE.TextureLoader();
+
+const texEarth = loader.load("https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg");
+const texJupiter = loader.load("https://threejs.org/examples/textures/planets/jupiter.jpg");
+const texSaturn = loader.load("https://threejs.org/examples/textures/planets/saturn.jpg");
+const texRing = loader.load("https://threejs.org/examples/textures/planets/saturnringcolor.jpg");
 
 // ===== SOL =====
 const sun = new THREE.Mesh(
-  new THREE.SphereGeometry(2, 64, 64),
-  new THREE.MeshBasicMaterial({ color: 0xffaa00 })
+  new THREE.SphereGeometry(2,64,64),
+  new THREE.MeshBasicMaterial({color:0xffaa00})
 );
 scene.add(sun);
 
 // ===== ÓRBITAS =====
-function createOrbit(radius){
-  const curve = new THREE.EllipseCurve(0,0,radius,radius,0,2*Math.PI);
-  const points = curve.getPoints(100);
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+function orbit(r){
+  const curve = new THREE.EllipseCurve(0,0,r,r);
+  const pts = curve.getPoints(100);
   return new THREE.LineLoop(
-    geometry,
-    new THREE.LineBasicMaterial({ color: 0x4444ff })
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:0x4444ff})
   );
 }
 
 // ===== PLANETAS =====
-const planetData = [
-  {name:"Mercury", color:0xaaaaaa, size:0.3, dist:3},
-  {name:"Venus", color:0xffaa66, size:0.5, dist:4},
-  {name:"Earth", color:0x3399ff, size:0.5, dist:5},
-  {name:"Mars", color:0xff3300, size:0.4, dist:6},
-  {name:"Jupiter", color:0xffcc99, size:1, dist:8},
-  {name:"Saturn", color:0xffddaa, size:0.9, dist:10},
-  {name:"Uranus", color:0x66ccff, size:0.7, dist:12},
-  {name:"Neptune", color:0x3366ff, size:0.7, dist:14},
-];
+const earth = new THREE.Mesh(
+  new THREE.SphereGeometry(0.6,64,64),
+  new THREE.MeshStandardMaterial({map:texEarth})
+);
 
-const planets = [];
+const jupiter = new THREE.Mesh(
+  new THREE.SphereGeometry(1.2,64,64),
+  new THREE.MeshStandardMaterial({map:texJupiter})
+);
 
-planetData.forEach(p=>{
-  const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(p.size, 32, 32),
-    new THREE.MeshStandardMaterial({ color:p.color })
-  );
+const saturn = new THREE.Mesh(
+  new THREE.SphereGeometry(1,64,64),
+  new THREE.MeshStandardMaterial({map:texSaturn})
+);
 
-  mesh.position.set(
-    (Math.random()-0.5)*20,
-    (Math.random()-0.5)*10,
-    0
-  );
+// ===== ANEL DE SATURNO =====
+const ring = new THREE.Mesh(
+  new THREE.RingGeometry(1.4, 2.2, 64),
+  new THREE.MeshBasicMaterial({
+    map: texRing,
+    side: THREE.DoubleSide,
+    transparent: true
+  })
+);
+ring.rotation.x = Math.PI / 2;
+saturn.add(ring);
 
-  scene.add(mesh);
-  scene.add(createOrbit(p.dist));
+// posições iniciais (bagunçadas)
+earth.position.set(-8, 4, 0);
+jupiter.position.set(8, 3, 0);
+saturn.position.set(0, -4, 0);
 
-  planets.push({mesh, ...p});
-});
+scene.add(earth, jupiter, saturn);
 
-// ===== MÃO =====
-let targetX=0, targetY=0;
-let smoothX=0, smoothY=0;
-let detected=false;
+// órbitas corretas
+scene.add(orbit(5));
+scene.add(orbit(8));
+scene.add(orbit(11));
+
+// ===== CONTROLE MÃO =====
+let tx=0, ty=0, sx=0, sy=0, detected=false;
 
 const video = document.getElementById("video");
 
 const hands = new Hands({
-  locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
+  locateFile:f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`
 });
 
 hands.setOptions({
   maxNumHands:1,
-  modelComplexity:0, // MAIS LEVE!
+  modelComplexity:0,
   minDetectionConfidence:0.6,
   minTrackingConfidence:0.6
 });
@@ -144,73 +141,62 @@ hands.setOptions({
 hands.onResults(r=>{
   if(r.multiHandLandmarks.length){
     detected=true;
-    const finger = r.multiHandLandmarks[0][8];
-
-    targetX = (finger.x - 0.5)*20;
-    targetY = -(finger.y - 0.5)*10;
+    const f = r.multiHandLandmarks[0][8];
+    tx = (f.x-0.5)*20;
+    ty = -(f.y-0.5)*10;
   } else detected=false;
 });
 
-const cam = new Camera(video,{
-  onFrame: async()=> await hands.send({image:video}),
+new Camera(video,{
+  onFrame:async()=>await hands.send({image:video}),
   width:640,
   height:480
-});
-cam.start();
+}).start();
 
-// ===== CONTROLE =====
-let selected = null;
+// ===== SELEÇÃO =====
+let selected=null;
 
-function pickPlanet(x,y){
-  let closest=null;
-  let min=999;
-
-  planets.forEach(p=>{
-    const d = Math.hypot(p.mesh.position.x-x, p.mesh.position.y-y);
-    if(d<1 && d<min){
-      min=d;
-      closest=p;
-    }
-  });
-
-  return closest;
+function pick(x,y){
+  let objs=[earth,jupiter,saturn];
+  return objs.find(o=> Math.hypot(o.position.x-x,o.position.y-y)<1);
 }
 
 // ===== LOOP =====
 function animate(){
   requestAnimationFrame(animate);
 
-  smoothX += (targetX - smoothX)*0.15;
-  smoothY += (targetY - smoothY)*0.15;
+  sx += (tx-sx)*0.15;
+  sy += (ty-sy)*0.15;
 
   if(detected){
-    if(!selected){
-      selected = pickPlanet(smoothX, smoothY);
-    }
+    if(!selected) selected = pick(sx,sy);
     if(selected){
-      selected.mesh.position.x = smoothX;
-      selected.mesh.position.y = smoothY;
+      selected.position.x = sx;
+      selected.position.y = sy;
     }
-  } else {
-    selected = null;
-  }
+  } else selected=null;
 
-  // verificação + rotação
+  // verificação
+  const planets = [
+    {obj:earth, dist:5},
+    {obj:jupiter, dist:8},
+    {obj:saturn, dist:11}
+  ];
+
   planets.forEach(p=>{
-    const dist = p.mesh.position.length();
-    const correct = Math.abs(dist - p.dist) < 0.5;
+    const d = p.obj.position.length();
+    const correct = Math.abs(d - p.dist) < 0.5;
 
     if(correct){
-      p.mesh.rotation.y += 0.02;
-      p.mesh.material.emissive = new THREE.Color(0x00ff00);
+      p.obj.rotation.y += 0.02;
+      p.obj.material.emissive = new THREE.Color(0x00ff00);
     } else {
-      p.mesh.material.emissive = new THREE.Color(0x000000);
+      p.obj.material.emissive = new THREE.Color(0x000000);
     }
   });
 
   renderer.render(scene,camera);
 }
-
 animate();
 
 // resize
